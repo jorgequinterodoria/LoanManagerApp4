@@ -1,64 +1,96 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Bar } from 'react-chartjs-2';
-import { Chart as ChartJS, registerables } from 'chart.js';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useClient } from '../contexts/clientContext';
 import { useLoan } from '../contexts/loanContext';
-import ChartComponent from '../components/ChartComponent';
-
-ChartJS.register(...registerables);
+import moment from 'moment';
 
 const StatisticsScreen = () => {
-  const { loans, loading } = useLoan();
-  const { clients } = useClient();
-  const [loanData, setLoanData] = useState<any>({});
-  const [paymentData, setPaymentData] = useState<any>({});
+  const { clients, loading: clientsLoading, fetchClients } = useClient();
+  const { loans, loading: loansLoading } = useLoan();
+  const [totalClients, setTotalClients] = useState(0);
+  const [totalActiveCapital, setTotalActiveCapital] = useState(0);
+  const [totalInstallments, setTotalInstallments] = useState(0);
+  const [totalCollectedThisMonth, setTotalCollectedThisMonth] = useState(0);
 
   useEffect(() => {
-    const fetchData = async () => {
-      // Fetch and process data for statistics
-      const loanAmounts = loans.reduce((acc, loan) => acc + loan.amount, 0);
-      const paymentAmounts = loans.reduce((acc, loan) => {
-        const payments = loan.payments.reduce((acc, payment) => acc + payment.amount, 0);
-        return acc + payments;
-      }, 0);
+    if (clients && loans) {
+      const calculateStatistics = () => {
+        const totalClients = clients.length;
+        const totalActiveCapital = loans.reduce((acc, loan) => acc + loan.amount, 0);
+        const totalInstallments = loans.reduce((acc, loan) => {
+          return acc + loan.payments.reduce((acc, payment) => acc + payment.amount, 0);
+        }, 0);
 
-      setLoanData({
-        labels: loans.map(loan => loan.startDate),
-        datasets: [{
-          label: 'Total Loans',
-          data: loans.map(loan => loan.amount),
-          backgroundColor: 'rgba(75, 192, 192, 0.6)',
-        }],
-      });
+        const currentMonth = moment().format('YYYY-MM');
+        const totalCollectedThisMonth = loans.reduce((acc, loan) => {
+          return acc + loan.payments.reduce((acc, payment) => {
+            const paymentMonth = moment(payment.paymentDate).format('YYYY-MM');
+            return paymentMonth === currentMonth ? acc + payment.amount : acc;
+          }, 0);
+        }, 0);
 
-      setPaymentData({
-        labels: loans.map(loan => loan.startDate),
-        datasets: [{
-          label: 'Total Payments',
-          data: loans.map(loan => loan.payments.reduce((acc, payment) => acc + payment.amount, 0)),
-          backgroundColor: 'rgba(153, 102, 255, 0.6)',
-        }],
-      });
-    };
+        setTotalClients(totalClients);
+        setTotalActiveCapital(totalActiveCapital);
+        setTotalInstallments(totalInstallments);
+        setTotalCollectedThisMonth(totalCollectedThisMonth);
+      };
 
-    fetchData();
-  }, [loans]);
+      calculateStatistics();
+    }
+  }, [clients, loans]);
+
+  useEffect(() => {
+    // Refrescar los datos de clientes al montar el componente
+    fetchClients();
+  }, []);
 
   return (
-    <View style={styles.container}>
-      <Text>Statistics</Text>
-      <ChartComponent data={loanData} type="bar" />
-      <ChartComponent data={paymentData} type="bar" />
-      <Text>Total Capital Active: {loanAmounts}</Text>
-      <Text>Total Loans Active: {loans.length}</Text>
-      <Text>Total Payments: {paymentAmounts}</Text>
-    </View>
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Total de Clientes</Text>
+        <Text style={styles.cardValue}>{totalClients}</Text>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Total de Capital Activo</Text>
+        <Text style={styles.cardValue}>{`$${totalActiveCapital.toFixed(2)}`}</Text>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Suma de Cuotas de los Préstamos</Text>
+        <Text style={styles.cardValue}>{`$${totalInstallments.toFixed(2)}`}</Text>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Total Valor Recaudado en El Mes En Curso</Text>
+        <Text style={styles.cardValue}>{`$${totalCollectedThisMonth.toFixed(2)}`}</Text>
+      </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#f5f5f5',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    marginVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  cardValue: {
+    fontSize: 16,
+  },
 });
 
 export default StatisticsScreen;

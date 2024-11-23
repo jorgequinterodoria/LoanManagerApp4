@@ -1,104 +1,53 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initDatabase, getDatabase } from '../services/SQLiteService';
 
-// Define a more specific type for the loan
-interface Loan {
-  id?: number;
-  clientId: number;
-  amount: number;
-  interestRate: number;
-  paymentFrequency: string;
-  loanType: string;
-  startDate: string;
-  endDate: string;
-}
-
-// Define the context type
+// Definir el tipo de contexto
 interface LoanContextType {
-  loans: Loan[];
+  loans: any[];
   loading: boolean;
-  addLoan: (loan: Omit<Loan, 'id'>) => Promise<void>;
-  editLoan: (loan: Loan) => Promise<void>;
+  addLoan: (loan: any) => Promise<void>;
+  editLoan: (loan: any) => Promise<void>;
   deleteLoan: (id: number) => Promise<void>;
 }
 
-// Create the context
-const LoanContext = createContext<LoanContextType | undefined>(undefined);
+// Crear el contexto
+const LoanContext = createContext<LoanContextType | null>(null);
 
-// Create the context provider
-export const LoanProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [loans, setLoans] = useState<Loan[]>([]);
+// Crear el proveedor del contexto
+export const LoanProvider = ({ children }: { children: React.ReactNode }) => {
+  const [loans, setLoans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchLoans = async () => {
-      try {
-        const db = await getDatabase();
-        const result = await db.executeSql('SELECT * FROM loans');
-        setLoans(result[0].rows._array);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching loans:', error);
-        setLoading(false);
-      }
+      const db = await getDatabase();
+      const result = await db.executeSql('SELECT * FROM loans');
+      setLoans(result[0].rows._array);
+      setLoading(false);
     };
     fetchLoans();
   }, []);
 
-  const addLoan = async (loan: Omit<Loan, 'id'>) => {
-    try {
-      const db = await getDatabase();
-      const result = await db.executeSql(
-        'INSERT INTO loans (client_id, amount, interest_rate, payment_frequency, loan_type, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [
-          loan.clientId,
-          loan.amount,
-          loan.interestRate,
-          loan.paymentFrequency,
-          loan.loanType,
-          loan.startDate,
-          loan.endDate
-        ]
-      );
-
-      // Assuming the database returns the new loan ID
-      const newLoan = { ...loan, id: result[0].insertId };
-      setLoans(prevLoans => [...prevLoans, newLoan]);
-    } catch (error) {
-      console.error('Error adding loan:', error);
-    }
+  const addLoan = async (loan: any) => {
+    const db = await getDatabase();
+    await db.executeSql('INSERT INTO loans (client_id, amount, interest_rate, payment_frequency, loan_type, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+      loan.clientId, loan.amount, loan.interestRate, loan.paymentFrequency, loan.loanType, loan.startDate, loan.endDate
+    ]);
+    setLoans([...loans, loan]);
   };
 
-  const editLoan = async (loan: Loan) => {
-    try {
-      const db = await getDatabase();
-      await db.executeSql(
-        'UPDATE loans SET client_id = ?, amount = ?, interest_rate = ?, payment_frequency = ?, loan_type = ?, start_date = ?, end_date = ? WHERE id = ?',
-        [
-          loan.clientId,
-          loan.amount,
-          loan.interestRate,
-          loan.paymentFrequency,
-          loan.loanType,
-          loan.startDate,
-          loan.endDate,
-          loan.id
-        ]
-      );
-      setLoans(prevLoans => prevLoans.map(l => l.id === loan.id ? loan : l));
-    } catch (error) {
-      console.error('Error editing loan:', error);
-    }
+  const editLoan = async (loan: any) => {
+    const db = await getDatabase();
+    await db.executeSql('UPDATE loans SET client_id = ?, amount = ?, interest_rate = ?, payment_frequency = ?, loan_type = ?, start_date = ?, end_date = ? WHERE id = ?', [
+      loan.clientId, loan.amount, loan.interestRate, loan.paymentFrequency, loan.loanType, loan.startDate, loan.endDate, loan.id
+    ]);
+    setLoans(loans.map(l => l.id === loan.id ? loan : l));
   };
 
   const deleteLoan = async (id: number) => {
-    try {
-      const db = await getDatabase();
-      await db.executeSql('DELETE FROM loans WHERE id = ?', [id]);
-      setLoans(prevLoans => prevLoans.filter(l => l.id !== id));
-    } catch (error) {
-      console.error('Error deleting loan:', error);
-    }
+    const db = await getDatabase();
+    await db.executeSql('DELETE FROM loans WHERE id = ?', [id]);
+    setLoans(loans.filter(l => l.id !== id));
   };
 
   return (
@@ -108,10 +57,10 @@ export const LoanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-// Create a custom hook to use the context
+// Crear el hook para usar el contexto
 export const useLoan = () => {
   const context = useContext(LoanContext);
-  if (context === undefined) {
+  if (context === null) {
     throw new Error('useLoan must be used within a LoanProvider');
   }
   return context;

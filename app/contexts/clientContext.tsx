@@ -1,107 +1,67 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getDatabase } from '../services/SQLiteService';
+import { initDatabase, getDatabase } from '../services/SQLiteService';
 
-// Define a specific interface for Client
-interface Client {
-  id?: number;
-  name: string;
-  phone: string;
-}
-
-// Define the context type
+// Definir el tipo de contexto
 interface ClientContextType {
-  clients: Client[];
+  clients: any[];
   loading: boolean;
-  addClient: (client: Omit<Client, 'id'>) => Promise<void>;
-  editClient: (client: Client) => Promise<void>;
+  addClient: (client: any) => Promise<void>;
+  editClient: (client: any) => Promise<void>;
   deleteClient: (id: number) => Promise<void>;
+  fetchClients: () => Promise<void>;
 }
 
-// Create the context
-const ClientContext = createContext<ClientContextType | undefined>(undefined);
+// Crear el contexto
+const ClientContext = createContext<ClientContextType | null>(null);
 
-// Create the context provider
-export const ClientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [clients, setClients] = useState<Client[]>([]);
+// Crear el proveedor del contexto
+export const ClientProvider = ({ children }: { children: React.ReactNode }) => {
+  const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchClients = async () => {
+    const db = await getDatabase();
+    const result = await db.executeSql('SELECT * FROM clients');
+    setClients(result[0].rows._array);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const fetchClients = async () => {
-      try {
-        const db = await getDatabase();
-        const result = await db.executeSql('SELECT * FROM clients');
-
-        // Safely extract rows
-        const fetchedClients: Client[] = [];
-        for (let i = 0; i < result[0].rows.length; i++) {
-          fetchedClients.push(result[0].rows.item(i));
-        }
-
-        setClients(fetchedClients);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching clients:', error);
-        setLoading(false);
-      }
-    };
     fetchClients();
   }, []);
 
-  const addClient = async (client: Omit<Client, 'id'>) => {
-    try {
-      const db = await getDatabase();
-      const result = await db.executeSql(
-        'INSERT INTO clients (name, phone) VALUES (?, ?)',
-        [client.name, client.phone]
-      );
-
-      // Add the new client with the inserted ID
-      const newClient = { ...client, id: result[0].insertId };
-      setClients(prevClients => [...prevClients, newClient]);
-    } catch (error) {
-      console.error('Error adding client:', error);
-      throw error;
-    }
+  const addClient = async (client: any) => {
+    const db = await getDatabase();
+    await db.executeSql('INSERT INTO clients (name, phone) VALUES (?, ?)', [client.name, client.phone]);
+    await fetchClients(); // Refrescar los datos después de agregar
+    console.log('Clients after add:', clients);
   };
 
-  const editClient = async (client: Client) => {
-    try {
-      const db = await getDatabase();
-      await db.executeSql(
-        'UPDATE clients SET name = ?, phone = ? WHERE id = ?',
-        [client.name, client.phone, client.id]
-      );
-      setClients(prevClients =>
-        prevClients.map(c => c.id === client.id ? client : c)
-      );
-    } catch (error) {
-      console.error('Error editing client:', error);
-      throw error;
-    }
+  const editClient = async (client: any) => {
+    const db = await getDatabase();
+    await db.executeSql('UPDATE clients SET name = ?, phone = ? WHERE id = ?', [client.name, client.phone, client.id]);
+    await fetchClients(); // Refrescar los datos después de editar
+    console.log('Clients after edit:', clients);
   };
 
   const deleteClient = async (id: number) => {
-    try {
-      const db = await getDatabase();
-      await db.executeSql('DELETE FROM clients WHERE id = ?', [id]);
-      setClients(prevClients => prevClients.filter(c => c.id !== id));
-    } catch (error) {
-      console.error('Error deleting client:', error);
-      throw error;
-    }
+    const db = await getDatabase();
+    await db.executeSql('DELETE FROM clients WHERE id = ?', [id]);
+    await fetchClients(); // Refrescar los datos después de eliminar
+    console.log('Clients after delete:', clients);
   };
 
   return (
-    <ClientContext.Provider value={{ clients, loading, addClient, editClient, deleteClient }}>
+    <ClientContext.Provider value={{ clients, loading, addClient, editClient, deleteClient, fetchClients }}>
       {children}
     </ClientContext.Provider>
   );
 };
 
-// Create a custom hook to use the context
+// Crear el hook para usar el contexto
 export const useClient = () => {
   const context = useContext(ClientContext);
-  if (context === undefined) {
+  if (context === null) {
     throw new Error('useClient must be used within a ClientProvider');
   }
   return context;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Image } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { Loan } from '../types/Loan';
 import { getLoans, saveLoan } from '../services/LoanService';
 import moment from 'moment';
@@ -7,27 +8,33 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface PaymentScreenProps {
     navigation: any;
-    route: any;
 }
 
-const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
-    const { loanId } = route.params;
+const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation }) => {
+    const [loans, setLoans] = useState<Loan[]>([]);
+    const [selectedLoanId, setSelectedLoanId] = useState<string>('');
     const [loan, setLoan] = useState<Loan | null>(null);
     const [paymentAmount, setPaymentAmount] = useState<number>(0);
     const [notes, setNotes] = useState<string>('');
     const [receiptImage, setReceiptImage] = useState<string>('');
 
     useEffect(() => {
-        const fetchLoan = async () => {
-            const loans = await getLoans();
-            const foundLoan = loans.find((loan) => loan.id === loanId);
+        const fetchLoans = async () => {
+            const fetchedLoans = await getLoans();
+            setLoans(fetchedLoans);
+        };
+
+        fetchLoans();
+    }, []);
+
+    useEffect(() => {
+        if (selectedLoanId) {
+            const foundLoan = loans.find((loan) => loan.id === selectedLoanId);
             if (foundLoan) {
                 setLoan(foundLoan);
             }
-        };
-
-        fetchLoan();
-    }, [loanId]);
+        }
+    }, [selectedLoanId, loans]);
 
     const handleSavePayment = async () => {
         if (loan) {
@@ -55,7 +62,6 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
             updatedLoan.notes = notes;
 
-            const loans = await getLoans();
             const updatedLoans = loans.map((l) => (l.id === loan.id ? updatedLoan : l));
             await AsyncStorage.setItem('@LoanManagerApp:loans', JSON.stringify(updatedLoans));
             navigation.goBack();
@@ -67,7 +73,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
         // Por ejemplo, usando una biblioteca como react-native-image-picker
     };
 
-    if (!loan) {
+    if (!loans.length) {
         return (
             <View style={styles.container}>
                 <Text style={styles.title}>Cargando...</Text>
@@ -78,16 +84,29 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     return (
         <View style={styles.container}>
             <Text style={styles.title}>Registrar Pago</Text>
-            <Text>ID del Préstamo: {loan.id}</Text>
-            <Text>ID del Cliente: {loan.clientId}</Text>
-            <Text>Monto: ${loan.amount.toFixed(2)}</Text>
-            <Text>Tasa de Interés: {loan.interestRate}%</Text>
-            <Text>Frecuencia de Pago: {loan.paymentFrequency}</Text>
-            <Text>Fecha de Pago: {moment(loan.paymentDate).format('YYYY-MM-DD')}</Text>
-            <Text>Monto de Pago: ${loan.paymentAmount.toFixed(2)}</Text>
-            <Text>Tipo: {loan.type}</Text>
-            <Text>Estado: {loan.status}</Text>
-            <Text>Notas: {loan.notes}</Text>
+            <Picker
+                selectedValue={selectedLoanId}
+                style={styles.picker}
+                onValueChange={(itemValue) => setSelectedLoanId(itemValue)}
+            >
+                {loans.map((loan) => (
+                    <Picker.Item key={loan.id} label={`Préstamo ${loan.id} - ${loan.clientId}`} value={loan.id} />
+                ))}
+            </Picker>
+            {loan && (
+                <>
+                    <Text>ID del Préstamo: {loan.id}</Text>
+                    <Text>ID del Cliente: {loan.clientId}</Text>
+                    <Text>Monto: ${loan.amount.toFixed(2)}</Text>
+                    <Text>Tasa de Interés: {loan.interestRate}%</Text>
+                    <Text>Frecuencia de Pago: {loan.paymentFrequency}</Text>
+                    <Text>Fecha de Pago: {moment(loan.paymentDate).format('YYYY-MM-DD')}</Text>
+                    <Text>Monto de Pago: ${loan.paymentAmount.toFixed(2)}</Text>
+                    <Text>Tipo: {loan.type}</Text>
+                    <Text>Estado: {loan.status}</Text>
+                    <Text>Notas: {loan.notes}</Text>
+                </>
+            )}
             <TextInput
                 style={styles.input}
                 placeholder="Monto del Pago"
@@ -127,6 +146,10 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         paddingHorizontal: 8,
         borderRadius: 8,
+    },
+    picker: {
+        height: 50,
+        marginBottom: 12,
     },
     receiptImage: {
         width: '100%',
